@@ -532,7 +532,7 @@ y
 EOF
     fi
     if [ ${ADDMB} -ne 0 ]; then
-      echo ""
+      echo "increase fs for additional space of $ADDMB MB"
       mkloop
       e2fsck -f -n "${LOOP}p2"
       if [ $? -ne 0 ]; then
@@ -548,6 +548,8 @@ EOF
     fi
   fi
   mntimg
+
+  #transfer DIR timestamps from source to target, list of reference created by rsync dry-run
   while read DIR
   do
     touch -r "${DIR}" "${MNTPATH}${DIR}"
