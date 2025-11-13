@@ -1,8 +1,16 @@
 # RonR-RaspberryPi-image-utils
 
+---
 ### Modified copy of image-backup:
-I had to add some sleeps because of problems on old a Raspi buster with losetup, Loop Devices seems to be locked without sleep 1-2 and sync, else the program stops with error at losetup. 
-Add exception for log2ram (exclude /var/hdd.log) to have compatible directory structure with dd backup. Added parameter dont shrink
+I had to add some sleeps because of problems on an old Raspi buster edition with losetup, Loop Devices seems to be locked without
+sleep 1-2 and sync, else the program stops with error at losetup. 
+Add exclude test for log2ram (exclude /var/hdd.log) to have compatible directory structure with dd backup.
+Added parameter don't shrink after backup and some comments
+
+---
+
+
+
 
 **NB** scruss is *not* the author or maintainer of these files (same goes for seamusdemora, who assumed maintenance of this repo from scruss). Please take up any issues or questions in the [Image File Utilities](https://forums.raspberrypi.com/viewtopic.php?t=332000) thread of the Raspberry Pi Forums site. ***IOW: This is a file repository only; no support is available here.***
 
