@@ -1,5 +1,9 @@
 # RonR-RaspberryPi-image-utils
 
+### Modified copy of image-backup:
+I had to add some sleeps because of problems on old a Raspi buster with losetup, Loop Devices seems to be locked without sleep 1-2 and sync, else the program stops with error at losetup. 
+Add exception for log2ram (exclude /var/hdd.log) to have compatible directory structure with dd backup. Added parameter dont shrink
+
 **NB** scruss is *not* the author or maintainer of these files (same goes for seamusdemora, who assumed maintenance of this repo from scruss). Please take up any issues or questions in the [Image File Utilities](https://forums.raspberrypi.com/viewtopic.php?t=332000) thread of the Raspberry Pi Forums site. ***IOW: This is a file repository only; no support is available here.***
 
 Files here are a toolset to create and update a backup of a running RPi OS to a raw image file. The files are copies of those posted on the Raspberry Pi Forums site. The file attachments in that forum don't seem to be persistent (*and are subject to other annoyances imposed by CloudFlare*). Consequently, this repo was created by user scruss and is now maintained by seamus, *to ensure* a current working copy of *`image-utils`* is always available through `git`.
