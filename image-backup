@@ -1,4 +1,5 @@
 #!/bin/bash
+#set -x
 
 trap '{ stty sane; echo ""; errexit "Aborted"; }' SIGINT SIGTERM
 
@@ -22,17 +23,19 @@ errexit()
 
 mkloop()
 {
-  LOOP="$(losetup -f --show -P "${IMGFILE}")"
+  LOOP="$(sudo losetup -f --show -P "${IMGFILE}")"
   if [ $? -ne 0 ]; then
     errexit "Unable to create loop device"
   fi
+  sleep 1
 }
 
 rmloop()
 {
   if [ "${LOOP}" != "" ]; then
-    losetup -d "${LOOP}"
+    sudo losetup -d "${LOOP}"
     LOOP="" 
+	sleep 1
   fi
 }
 
@@ -64,6 +67,7 @@ mntimg()
 
 umntimg()
 {
+  sync
   umount "${BOOTMNT}/"
   if [ $? -ne 0 ]; then
     errexit "Unable to unmount image BOOT partition"
@@ -73,6 +77,8 @@ umntimg()
     errexit "Unable to unmount image ROOT partition"
   fi
   MNTED=FALSE
+  sleep 5
+  rmloop
   rmloop
   rm -r "${MNTPATH}/"
 }
@@ -90,16 +96,26 @@ usage()
 -n,--noexpand   Do not expand filesystem on first run after restore\n\
 -o,--options    Additional rsync options (comma separated)\n\
 -u,--ubuntu     Ubuntu (Deprecated)\n\
--x,--extract    Extract image from NOOBS (force BOOT partition to -01 / ROOT partition to -02)"
+-x,--extract    Extract image from NOOBS (force BOOT partition to -01 / ROOT partition to -02)\n\
+-d,--dontshrink Don't shrink the Image"
 }
 
 backup()
 {
   mntimg
   sync
+
+#check for log2ram: save only /var/log, NOT /var/hdd.log to be compatible to dd backup
+  if [[ -d "/var/hdd.log" && -f "/usr/bin/log2ram" ]]; then
+    echo "log2ram detected, exclude /var/hdd.log from rsync backup"
+     EXCLUDE_HDD="--exclude '/var/hdd.log'"
+   else 
+    EXCLUDE_HDD=""
+  fi
+  
   rsync -aDH --partial --numeric-ids --delete --force --exclude "${MNTPATH}" --exclude '/dev' --exclude '/lost+found' --exclude '/media' --exclude '/mnt' \
 --exclude '/proc' --exclude '/run' --exclude '/sys' --exclude '/tmp' --exclude '/var/swap' --exclude '/etc/udev/rules.d/70-persistent-net.rules' \
---exclude '/var/lib/asterisk/astdb.sqlite3-journal' "${OPTIONS[@]}" / "${MNTPATH}/"
+--exclude '/var/lib/asterisk/astdb.sqlite3-journal' $EXCLUDE_HDD "${OPTIONS[@]}" / "${MNTPATH}/"
   if [[ $? -ne 0 && $? -ne 24 ]]; then
     errexit "Unable to create backup"
   fi
@@ -123,6 +139,7 @@ EOF
       chmod +x "${MNTPATH}/etc/rc.local"
     fi
     if [ $(grep -v '^[[:space:]]*#' "${MNTPATH}/etc/rc.local" | grep -c 'resize-root-fs') -eq 0 ]; then
+	  echo "--- resize at first boot ---"
       cat <<\EOF1 > "${MNTPATH}/etc/resize-root-fs"
 #!/bin/bash
 
@@ -251,6 +268,9 @@ IMGFILE=""
 OPTIONS=()
 EXTRACT=FALSE
 NOEXPAND=FALSE
+EXCLUDE_HDD=""
+DONTSHRINK=FALSE
+
 while [ $# -gt 0 ]; do
   case "$1" in
 
@@ -271,6 +291,11 @@ while [ $# -gt 0 ]; do
 
     -n|--noexpand)
       NOEXPAND=TRUE
+      shift
+      ;;
+  
+    -d|--dontshrink)  
+      DONTSHRINK=TRUE
       shift
       ;;
 
@@ -302,6 +327,9 @@ while [ $# -gt 0 ]; do
 
   esac
 done
+
+
+
 if [ "${IMGFILE}" = "" ]; then
   if [ "${IMGNAME}" != "" ]; then
     IMGFILE="${IMGNAME}"
@@ -411,6 +439,7 @@ y
 EOF
   fi
   mkloop
+  echo "Create boot filesystem"
   mkfs.vfat -F 32 -n boot -s 4 "${LOOP}p1" &> /dev/null
   if [ $? -ne 0 ]; then
     errexit "Unable to create image BOOT filesystem"
@@ -422,6 +451,7 @@ EOF
   if [ "${ROOT_TYPE}" = "f2fs" ]; then
     mkfs.f2fs "${LOOP}p2" > /dev/null
   else
+    echo "Create ext4 filesystem"
     mkfs.ext4 -b 4096 -L rootfs -q "${LOOP}p2" > /dev/null
   fi
   if [ $? -ne 0 ]; then
@@ -436,15 +466,22 @@ EOF
     mkloop
     e2fsck -f -n "${LOOP}p2"
     if [ $? -ne 0 ]; then
-      fsckerr "before"
+      fsckerr "before shrink"
     fi
     echo ""
-    resize2fs -f -M "${LOOP}p2"
-    resize2fs -f -M "${LOOP}p2"
-    resize2fs -f -M "${LOOP}p2"
+	
+    if [[ "${DONTSHRINK}" = "FALSE" ]]; then
+      echo "Shrink Image after Backup"
+      resize2fs -f -M -p "${LOOP}p2"
+      resize2fs -f -M -p "${LOOP}p2"
+      resize2fs -f -M -p "${LOOP}p2"
+    else
+      echo "Dont Shrink Image after Backup"
+    fi
+	
     e2fsck -f -n "${LOOP}p2"
     if [ $? -ne 0 ]; then
-      fsckerr "after"
+      fsckerr "after shrink"
     fi
     INFO="$(tune2fs -l "${LOOP}p2" 2>/dev/null)"
     rmloop
@@ -462,14 +499,17 @@ EOF
     truncate -s $(((${NEWEND} + 1) * 512)) "${IMGFILE}"
     if [ "${PTTYPE}" = "dos" ]; then
       sfdisk --delete "${IMGFILE}" 2 > /dev/null
-      echo "${START},+" | sfdisk -N2 "${IMGFILE}" &> /dev/null
-      fdisk "${IMGFILE}" <<EOF > /dev/null
+      echo "${START},+" | sfdisk -N2 "${IMGFILE}" &> /dev/nul
+	  mkloop
+      fdisk "${LOOP}" <<EOF &> /dev/null
+
 x
 i
 0x${PTUUID}
 r
 w
 EOF
+	  rmloop
     else
       sgdisk -Z "${IMGFILE}" &> /dev/null
       sgdisk -n 1:0:+${BOOTSIZE}M "${IMGFILE}" &> /dev/null
@@ -513,7 +553,7 @@ EOF
     touch -r "${DIR}" "${MNTPATH}${DIR}"
   done <<< "$(echo "$(rsync -aDH --dry-run --itemize-changes --partial --numeric-ids --delete --force --exclude "${MNTPATH}" --exclude '/dev' \
 --exclude '/lost+found' --exclude '/media' --exclude '/mnt' --exclude '/proc' --exclude '/run' --exclude '/sys' --exclude '/tmp' --exclude '/var/swap' \
---exclude '/etc/udev/rules.d/70-persistent-net.rules' --exclude '/var/lib/asterisk/astdb.sqlite3-journal' "${OPTIONS[@]}" / "${MNTPATH}/")" | \
+--exclude '/etc/udev/rules.d/70-persistent-net.rules' --exclude '/var/lib/asterisk/astdb.sqlite3-journal' $EXCLUDE_HDD "${OPTIONS[@]}" / "${MNTPATH}/")" | \
 sed -n "s|^\.d\.\.t\.\.\.\.\.\.\s\+\(.*$\)|/\1|p")"
   umntimg
   echo ""

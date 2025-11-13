@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -x
+
 trap '{ stty sane; echo ""; errexit "Aborted"; }' SIGINT SIGTERM
 
 MNTPATH="/tmp/img-set-partuuid-mnt"
@@ -163,16 +165,18 @@ else
     fsck.ext4 -f "${LOOP}p2"
   fi
   if [ $? -ne 0 ]; then
+    rmloop
     errexit "Image ROOT filesystem appears corrupted"
   fi
-  rmloop
+#  rmloop
   if [ "${PTTYPE}" = "dos" ]; then
     if [ "${PARTUUID}" = "random" ]; then
       PTUUID="$(hexdump -n 4 -e '"%08X"' /dev/random | tr [A-Z] [a-z])"
     else
       PTUUID="${PARTUUID:0:(${#PARTUUID} - 3)}"
     fi
-    fdisk "${IMGFILE}" <<EOF &> /dev/null
+#    sudo fdisk "${IMGFILE}" <<EOF
+     sudo fdisk "${LOOP}" <<EOF
 x
 i
 0x${PTUUID}
@@ -186,6 +190,7 @@ EOF
       sgdisk -u 2:${PARTUUID} "${IMGFILE}" > /dev/null
     fi
   fi
+  rmloop
   partprobe
   INFO="$(sfdisk -d "${IMGFILE}")"
   if [ "${PTTYPE}" = "dos" ]; then
@@ -206,6 +211,7 @@ EOF
   sed -i "/^[[:space:]]*#/!s|^\(PARTUUID=\)${ORIGUUID_2}\(\s\+/\s\+.*\)$|\1${PARTUUID_2}\2|" "${MNTPATH}/etc/fstab"
   sed -i "/^[[:space:]]*#/!s|^\(.*root=PARTUUID=\)${ORIGUUID_2}\(\s\+.*\)$|\1${PARTUUID_2}\2|" "${BOOTMNT}/cmdline.txt"
   umntimg
+
 fi
 echo ""
 echo "PARTUUID on ${IMGFILE} is set to ${PARTUUID}"
