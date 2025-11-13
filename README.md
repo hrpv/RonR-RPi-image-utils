@@ -2,10 +2,10 @@
 
 ---
 ### Modified copy of image-backup:
-I had to add some sleeps because of problems on an old Raspi buster edition with losetup, Loop Devices seems to be locked without
-sleep 1-2 and sync, else the program stops with error at losetup. 
-Add exclude test for log2ram (exclude /var/hdd.log) to have compatible directory structure with dd backup.
-Added parameter don't shrink after backup and some comments
+> I had to add some sleeps because of problems on an old Raspi buster edition with losetup, Loop Devices seems to be locked without
+> sleep 1-2 and sync, else the program stops with error at losetup. 
+> Add exclude test for log2ram (exclude /var/hdd.log) to have compatible directory structure with dd backup.
+> Added parameter don't shrink after backup and some comments
 
 ---
 
