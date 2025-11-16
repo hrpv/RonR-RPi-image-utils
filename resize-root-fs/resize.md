@@ -18,3 +18,5 @@ After rebooting, the service is executed once:
 - **Service Exit** (No idea why exit code 3).
 
 
+I have modified the resize-root-fs Sktipt to 
+allow resizing only to 15 GB on
