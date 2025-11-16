@@ -1,0 +1,80 @@
+#!/bin/bash
+#set -x
+
+ROOT_PART="$(mount | sed -n 's|^\(/dev/.*\) on / .*|\1|p')"                                        #/dev/mmcblk0p2
+ROOT_DEV="$(sed 's/[0-9]\+$//' <<< "${ROOT_PART}")"                                                # /dev/mmcblk0p
+if [[ "${ROOT_DEV}" =~ ^/dev/mmcblk[0-9]p$ || "${ROOT_DEV}" =~ ^/dev/nvme[0-9]n1p$ ]]; then
+  ROOT_DEV="${ROOT_DEV:0:(${#ROOT_DEV} - 1)}"                                                      # dev/mmcblk0
+fi
+START=$(sfdisk -d "${ROOT_DEV}" | sed -n "s|^${ROOT_PART}\s\+:.*start=\s*\([0-9]\+\).*$|\1|p")     # p2 start 1064960
+
+SIZE=$(sfdisk -d "${ROOT_DEV}" | sed -n "s|^${ROOT_PART}\s\+:.*size=\s*\([0-9]\+\).*$|\1|p")       # p2 size
+
+#$1 PART2SIZE in MB 
+if [ -z "$1" ]; then
+   PART2SIZE=$((0))    #undefined resize to max
+else
+   PART2SIZE=$(($1))
+fi
+
+# limit size of second partion to MAX_SIZE
+MAX_SIZE=$(($PART2SIZE * 1024 * 1024 / 512))
+
+# Remove /dev/ prefix
+DEVICE=$(echo "$ROOT_DEV" | sed 's|/dev/||')
+#  get device size in sectors
+SECTORS=$(cat /sys/block/$DEVICE/size)
+# max. size of new Partition
+NEWSIZE=$(($SECTORS - $START)) 
+#check if MAX_SIZE < SIZE of p2 e.g. MAX_SIZE=0 (undefined) in this case assume reszize to the max
+if (( $MAX_SIZE < $SIZE )); then
+  MAX_SIZE=$(($NEWSIZE))
+fi
+# limit new size to MAX_SIZE
+if (( $NEWSIZE > $MAX_SIZE )); then
+   NEWSIZE=$(($MAX_SIZE))
+fi;   
+
+END_SEC=$(($NEWSIZE + $START - 1))
+
+PTTYPE="$(blkid "${ROOT_DEV}"  | sed -n 's|^.*PTTYPE="\(\S\+\)".*|\1|p')"
+
+if [ "${PTTYPE}" = "dos" ]; then                                                                   # dos 
+  sfdisk --delete "${ROOT_DEV}" 2 > /dev/null
+#  echo "${START},+" | sfdisk --no-reread --no-tell-kernel -N2 "${ROOT_DEV}" &> /dev/null
+  echo "${START},${NEWSIZE}" | sfdisk --no-reread --no-tell-kernel -N2 "${ROOT_DEV}" &> /dev/null 
+else
+  PARTUUID="$(blkid "${ROOT_PART}" | sed -n 's|^.*PARTUUID="\(\S\+\)".*|\1|p')"
+  sgdisk -d 2 "${ROOT_DEV}" > /dev/null
+#  sgdisk -n 2:${START}:0 "${ROOT_DEV}" > /dev/null
+  sgdisk -n 2:${START}:${END_SEC} "${ROOT_DEV}" > /dev/null
+  sgdisk -u 2:${PARTUUID} "${ROOT_DEV}" > /dev/null
+fi
+cat <<\EOF2 > /etc/init.d/resize_root_fs
+#!/bin/sh
+### BEGIN INIT INFO
+# Provides: resize_root_fs
+# Required-Start:
+# Required-Stop:
+# Default-Start: 3
+# Default-Stop:
+# Short-Description: Resize root filesystem
+# Description:
+### END INIT INFO
+
+case "$1" in
+  start)
+    resize2fs "$(mount | sed -n 's|^\(/dev/.*\) on / .*|\1|p')"
+    update-rc.d resize_root_fs remove   #remove service
+    rm /etc/init.d/resize_root_fs
+    ;;
+  *)
+    exit 3
+    ;;
+esac
+EOF2
+chmod +x /etc/init.d/resize_root_fs
+update-rc.d resize_root_fs defaults   #install service
+sed -i '/resize-root-fs/d' /etc/rc.local  #/etc/rc.local nur noch exit 0
+rm /etc/resize-root-fs                    #remove file
+shutdown --no-wall -r now                 #Reboot

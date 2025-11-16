@@ -1,0 +1,4 @@
+#!/bin/sh -e
+
+/etc/resize-root-fs 15000
+exit 0
