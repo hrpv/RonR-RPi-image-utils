@@ -17,7 +17,7 @@ After rebooting, the service is executed once:
 - Delete the file `/etc/init.d/resize_root_fs`.
 - **Service Exit** (No idea why exit code 3).
 
-
+---
 I have modified the resize-root-fs Skript to allow resizing to e.g. only 15 GB 
 on a large SSD 
 where you dont want to use the complete Space for Raspi Filesystem. 
@@ -25,6 +25,10 @@ To resize to a defined size modify the 2 files in the image before the first boo
 
 - /etc/rc.local File: add the desired size im MB 
 - copy the new resize-root-fs to /etc
+  
+Todo: integrate the modified resize-root-fs in image-backup
+
+---
 
 ```bash
 #!/bin/sh -e
@@ -32,6 +36,6 @@ To resize to a defined size modify the 2 files in the image before the first boo
 /etc/resize-root-fs 15000
 exit 0
 ```
-Todo: integrate the modified resize-root-fs in image-backup
+
 
 
