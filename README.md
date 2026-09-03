@@ -18,7 +18,7 @@ Files here are a toolset to create and update a backup of a running RPi OS to a 
 
 ## An Overview
 
-I've used RonR's `image-utils` for several years now, and I've become a big fan. `Image-utils` creates a complete backup of a Raspberry Pi quickly and efficiently; these backups are rendered in the form of an [*"image file"*](https://en.wikipedia.org/wiki/IMG_(file_format)). The **\*.img** format is ideal as a backup because it's a _complete_ backup, it's _portable_, and it can be [_loop-mounted_](https://en.wikipedia.org/wiki/Loop_device). In other words: _If your system or SD card or NVME drive becomes corrupted, it can be restored to operation with minimal effort_. This restoration requires 3 "ingredients", and about 5 minutes:
+I've used RonR's `image-utils` for several years now, and I've become a big fan. In addition to this README, I've made a couple of [posts on StackExchange re `image-utils`](https://raspberrypi.stackexchange.com/a/109364/83790) as a backup solution. `Image-utils` creates a complete backup of a Raspberry Pi quickly and efficiently; these backups are rendered in the form of an [*"image file"*](https://en.wikipedia.org/wiki/IMG_(file_format)). The **\*.img** format is ideal as a backup because it's a _complete_ backup, it's _portable_, and it can be [_loop-mounted_](https://en.wikipedia.org/wiki/Loop_device). In other words: _If your system or SD card or NVME drive becomes corrupted, it can be restored to operation with minimal effort_. This restoration requires 3 "ingredients", and about 5 minutes:
 
    * The *raw image* backup file (`*.img`) file - created by `image-backup` 
    * A micro SD card (or NVME drive)
